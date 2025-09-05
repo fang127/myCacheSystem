@@ -40,6 +40,12 @@
 # debug information files
 *.dwo
 
+# executable files
+bin
+
+# vs code
+.vscode/
+
 # CMake generated files
 CMakeLists.txt.user
 CMakeCache.txt
