@@ -3,8 +3,8 @@
 
 #include <memory>
 #include <mutex>
+#include <vector>
 #include <unordered_map>
-
 #include "myCachePolicy.h"
 
 namespace myCacheSystem
@@ -65,7 +65,7 @@ namespace myCacheSystem
             构造函数
         */
         // 有参构造
-        myLruCache(int capacity) : capacity_(capacity) { this->lruNodeListInit(); }
+        explicit myLruCache(size_t capacity) : capacity_(capacity) { this->lruNodeListInit(); }
 
         // 析构函数
         virtual ~myLruCache() override = default;
@@ -122,7 +122,7 @@ namespace myCacheSystem
         virtual VALUE get(KEY key) override
         {
             VALUE value{};
-            this->get(key);
+            this->get(key, value);
             return value;
         }
 
@@ -137,6 +137,26 @@ namespace myCacheSystem
                 this->nodeMap_.erase(it);
             }
         }
+
+        // 清除缓存
+        void clear()
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            nodeMap_.clear();
+            head_->next_ = tail_;
+            tail_->prev_ = head_;
+        }
+
+#ifdef DEBUG
+        // 测试代码，打印主缓存
+        virtual void printCache()
+        {
+            for (const auto &pair : nodeMap_)
+            {
+                std::cout << "Key: " << pair.first << ", Value: " << pair.second->getValue() << std::endl;
+            }
+        }
+#endif
 
     private:
         /*
@@ -183,8 +203,7 @@ namespace myCacheSystem
         // 再末尾插入节点
         void insertNode(NodePtr node)
         {
-            auto prev =
-                this->tail_->prev_.lock(); // 获取尾节点上一结点，即最后一个有效节点
+            auto prev = this->tail_->prev_.lock(); // 获取尾节点上一结点，即最后一个有效节点
             prev->next_ = node;
             node->next_ = this->tail_;
             this->tail_->prev_ = node;
@@ -212,7 +231,7 @@ namespace myCacheSystem
             this->nodeMap_.erase(node->getKey());
         }
 
-        int capacity_;     // 缓存容量
+        size_t capacity_;  // 缓存容量
         NodeMap nodeMap_;  // 哈希表，便于快速查找节点
         std::mutex mutex_; // 互斥锁
         NodePtr head_;     // 虚拟头结点
@@ -231,7 +250,7 @@ namespace myCacheSystem
         */
 
         // 有参构造函数
-        myKLruCache(int capacity, int historyCapacity, int k)
+        myKLruCache(size_t capacity, size_t historyCapacity, size_t k)
             : myLruCache<KEY, VALUE>(capacity), historyList_(std::make_unique<myLruCache<KEY, size_t>>(historyCapacity)), k_(k) {}
 
         /*
@@ -243,16 +262,16 @@ namespace myCacheSystem
             VALUE value{};
             bool inMainCache = myLruCache<KEY, VALUE>::get(key, value);
 
-            // 2. 获取并更新访问历史计数
-            size_t historyCount = historyList_->get(key);
-            historyCount++;
-            historyList_->put(key, historyCount);
-
-            // 3. 如果数据在主缓存中，直接返回
+            // 2. 如果数据在主缓存中，直接返回
             if (inMainCache)
             {
                 return value;
             }
+
+            // 3. 如果不在主缓存，获取并更新访问历史计数
+            size_t historyCount = historyList_->get(key);
+            historyCount++;
+            historyList_->put(key, historyCount);
 
             // 4. 如果数据不在主缓存，但访问次数达到了k次
             if (historyCount >= this->k_)
@@ -286,12 +305,12 @@ namespace myCacheSystem
 
             if (isMainCache)
             {
-                myKLruCache<KEY, VALUE>::put(key, value);
+                myLruCache<KEY, VALUE>::put(key, value);
                 return;
             }
 
             // 2. 如果不在主缓存，检查k+1后是否达到要求，k没有达到要求不添加到主缓存
-            size_t historyCount = historyList_->get(key); // 获取历史次数
+            size_t historyCount = historyList_->get(key);
             historyCount++;
             historyList_->put(key, historyCount); // 更新位置至队首
 
@@ -306,11 +325,97 @@ namespace myCacheSystem
             }
         }
 
+        void clear()
+        {
+            historyList_->clear();
+            historyValueMap_.clear();
+        }
+
+#ifdef DEBUG
+        // 测试代码，打印历史缓存内容和缓存次数
+        virtual void printCache() override
+        {
+            std::cout << "History Cache Contents (Key-Value pairs):" << std::endl;
+            historyList_->printCache();
+            // 打印主缓存内容
+            std::cout << "Main Cache Contents:" << std::endl;
+            myLruCache<KEY, VALUE>::printCache();
+        }
+#endif
+
     private:
-        int k_;                                                // 进入缓存队列的评判标准
+        size_t k_;                                             // 进入缓存队列的评判标准
         std::unique_ptr<myLruCache<KEY, size_t>> historyList_; // 访问数据历史记录(value为访问次数)
         std::unordered_map<KEY, VALUE> historyValueMap_;       // 存储未达到k次访问的数据值
     };
+
+    /*
+        对LRUCache进行分片处理，避免高并发情况下，同步的时间等待
+    */
+    template <typename KEY, typename VALUE>
+    class myKHashLruCache
+    {
+        typedef std::unique_ptr<myKLruCache<KEY, VALUE>> myKLruCachePtr;
+
+    public:
+        /*
+            构造函数
+        */
+        myKHashLruCache(size_t capacity, size_t sliceNumber)
+            : capacity_(capacity), sliceNumber_(sliceNumber > 0 ? sliceNumber : std::thread::hardware_concurrency())
+        {
+            // 构造sliceCache在堆区
+            // 获取每个分区的容量
+            size_t sliceSize = std::ceil(static_cast<double>(capacity_) / static_cast<double>(sliceNumber_));
+            // 循环构建每个分片
+            for (int i = 0; i < sliceSize; ++i)
+            {
+                lruSliceCache_.emplace_back(std::make_unique<myLruCache<KEY, VALUE>>(sliceSize))
+            }
+        }
+
+        /*
+            成员函数接口
+        */
+        void put(KEY key, VALUE value)
+        {
+            size_t hashKey = hashFunction(key) % sliceNumber_;
+            lruSliceCache_[hashKey]->put(key, value);
+        }
+
+        bool get(KEY key, VALUE &value)
+        {
+            size_t hashKey = hashFunction(key) % sliceNumber_;
+            return lruSliceCache_[hashKey]->get(key, value);
+        }
+
+        VALUE get(KEY key)
+        {
+            VALUE value{};
+            get(key, value);
+            return value;
+        }
+
+        void clear()
+        {
+            for (auto &lruSliceItem : lruSliceCache_)
+            {
+                lruSliceItem->clear();
+            }
+        }
+
+    private:
+        size_t hashFunction(KEY key)
+        {
+            std::hash<KEY> hashFunc;
+            return hashFunc(key);
+        }
+
+        size_t capacity_;                           // LruCache总容量
+        size_t sliceNumber_;                        // 分片数量
+        std::vector<myKLruCachePtr> lruSliceCache_; // 存储LruCache的容器
+    };
+
 } // namespace myCacheSystem
 
 #endif // MYLRU_H
