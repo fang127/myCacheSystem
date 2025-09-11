@@ -82,7 +82,7 @@ namespace myCacheSystem
             return true;
         }
 
-        //
+        // 检查是否在幽灵结点
         bool checkGhost(kEY key)
         {
             auto it = nodeGhostMap_.find(key);

@@ -34,16 +34,36 @@ namespace myCacheSystem
             bool inLfu = lfuPart_->contain(key);
             // 更新LRU部分缓存
             lruPart_->put(key, value);
+            if (inLfu)
+            {
+                lfuPart_->put(key, value);
+            }
         }
 
         // 获取value
         virtual bool get(KEY key, VALUE &value) override
         {
+            checkGhostCaches(key);
+
+            bool shouldTransform = false;
+            if (lruPart_->get(key, value, shouldTransform))
+            {
+                if (shouldTransform)
+                {
+                    lfuPart_->put(key, value);
+                }
+                return true;
+            }
+
+            return lfuPart_->get(key, value);
         }
 
         // 访问缓存数据函数
         virtual VALUE get(KEY key) override
         {
+            VALUE value{};
+            get(key, value);
+            return value;
         }
 
     private:
