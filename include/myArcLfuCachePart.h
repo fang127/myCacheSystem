@@ -2,6 +2,7 @@
 #define MYARCLFUCACHEPART_H
 
 #include <unordered_map>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <list>
@@ -17,12 +18,12 @@ namespace myCacheSystem
         typedef myArcCacheNode<KEY, VALUE> NODE;
         typedef std::shared_ptr<NODE> NODEPTR;
         typedef std::unordered_map<KEY, NODEPTR> NODEMAP;
-        typedef std::unordered_map<size_t, std::list<NODEPTR>> FreqMap;
+        typedef std::map<size_t, std::list<NODEPTR>> FreqMap;
         /*
             构造函数
         */
         // 有参构造
-        explicit myArcLfuCachePart(size_t capacity, size_t transformThreshold = 3)
+        explicit myArcLfuCachePart(size_t capacity, size_t transformThreshold)
             : capacityMain_(capacity), capacityGhost_(capacity), transformThreshold_(transformThreshold), minFreq_(0)
         {
             initArcLfuCacheList();
@@ -61,7 +62,8 @@ namespace myCacheSystem
 
         bool checkGhost(KEY key)
         {
-            auto it = nodeGhostMap_(key);
+            // 查找幽灵缓存中是否存在该 key
+            auto it = nodeGhostMap_.find(key);
             if (it != nodeGhostMap_.end())
             {
                 removeFromGhost(it->second);
@@ -86,7 +88,7 @@ namespace myCacheSystem
             if (capacityMain_ <= 0)
                 return false;
 
-            if (nodeMainMap_.size() == capacity)
+            if (nodeMainMap_.size() == capacityMain_)
             {
                 evictLeastFreq();
             }
@@ -187,13 +189,14 @@ namespace myCacheSystem
     template <typename KEY, typename VALUE>
     bool myArcLfuCachePart<KEY, VALUE>::addNewNode(const KEY &key, const VALUE &value)
     {
-        // 检查空间是否足够，如果不够，需要删除最少访问频次节点，将其移动到幽灵链表
-        if (nodeGhostMap_.size() >= capacityMain_)
+        // 检查主缓存空间是否足够，如果不够，需要删除最少访问频次节点，将其移动到幽灵链表
+        if (nodeMainMap_.size() >= capacityMain_)
         {
             evictLeastFreq();
         }
-        NODEPTR newNode = std::shared_ptr<NODE>(key, value);
-        nodeMainMap_.emplace({key, newNode});
+        NODEPTR newNode = std::make_shared<NODE>(key, value);
+        // 正确插入到哈希表
+        nodeMainMap_.emplace(key, newNode);
         // 将新结点添加到频次为1的链表
         if (freqMap_.find(1) == freqMap_.end())
         {
@@ -265,16 +268,15 @@ namespace myCacheSystem
     template <typename KEY, typename VALUE>
     void myArcLfuCachePart<KEY, VALUE>::addToGhost(NODEPTR node)
     {
-        if (!node)
-            return;
-
+        // 将节点插入到幽灵链表尾部（在 tailGhost_ 之前）
         if (!tailGhost_->prev_.expired())
         {
-            auto prev = tailGhost_->prev_.expired();
+            auto prev = tailGhost_->prev_.lock();
             prev->next_ = node;
             node->next_ = tailGhost_;
             tailGhost_->prev_ = node;
             node->prev_ = prev;
+            nodeGhostMap_[node->getKey()] = node;
         }
     }
 }

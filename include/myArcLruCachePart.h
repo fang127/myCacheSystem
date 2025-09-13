@@ -19,7 +19,7 @@ namespace myCacheSystem
         /*
             构造函数
         */
-        explicit myArcLruCachePart(size_t capacity, size_t transformThreshold = 3)
+        explicit myArcLruCachePart(size_t capacity, size_t transformThreshold)
             : capacity_(capacity), ghostCapacity_(capacity), transformThreshold_(transformThreshold)
         {
             initArcLruCacheList();
@@ -83,7 +83,7 @@ namespace myCacheSystem
         }
 
         // 检查是否在幽灵结点
-        bool checkGhost(kEY key)
+        bool checkGhost(KEY key)
         {
             auto it = nodeGhostMap_.find(key);
             if (it != nodeGhostMap_.end())
@@ -200,7 +200,7 @@ namespace myCacheSystem
         }
         // 2. 添加节点到最新位置
         NODEPTR node = std::make_shared<NODE>(key, value); // 构造节点
-        nodeMainMap_.emplace({key, node});                 // 更新主map
+        nodeMainMap_.emplace(key, node);                   // 更新主map
         addToRecentNode(node);                             // 添加节点
         return true;
     }
@@ -260,7 +260,7 @@ namespace myCacheSystem
         node->prev_ = prev;
 
         // 添加节点到map
-        nodeGhostMap_.emplace({node->getKey(), node});
+        nodeGhostMap_.emplace(node->getKey(), node);
     }
 
     template <typename KEY, typename VALUE>

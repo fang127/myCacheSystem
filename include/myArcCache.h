@@ -15,8 +15,8 @@ namespace myCacheSystem
         /*
             构造函数
         */
-        explicit myArcCache(size_t capacity, size_t transformThreshold = 3)
-            : capacity_(capacity), transformThreshold_(transformThreshold), lruPart_(std::make_unique<myArcLruCachePart<KEY, VALUE>>(capacity_, transformThreshold_)), lfuPart_(std::make_unique<myArcLruCachePart<KEY, VALUE>>(capacity_, transformThreshold_))
+        explicit myArcCache(size_t capacity = 10, size_t transformThreshold = 2)
+            : capacity_(capacity), transformThreshold_(transformThreshold), lruPart_(std::make_unique<myArcLruCachePart<KEY, VALUE>>(capacity_, transformThreshold_)), lfuPart_(std::make_unique<myArcLfuCachePart<KEY, VALUE>>(capacity_, transformThreshold_))
         {
         }
 

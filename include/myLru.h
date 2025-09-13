@@ -5,6 +5,8 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
+#include <thread>
+#include <cmath>
 #include "myCachePolicy.h"
 
 namespace myCacheSystem
@@ -24,7 +26,7 @@ namespace myCacheSystem
             构造函数
         */
         // 默认构造
-        myLruNode() : accessSize_(1), next_(nullptr) {};
+        myLruNode() : accessCount_(1), next_(nullptr) {};
         // 有参构造
         myLruNode(KEY key, VALUE value) : key_(key), value_(value), accessCount_(1), next_(nullptr) {}
 
@@ -372,7 +374,7 @@ namespace myCacheSystem
             // 循环构建每个分片
             for (int i = 0; i < sliceSize; ++i)
             {
-                lruSliceCache_.emplace_back(std::make_unique<myLruCache<KEY, VALUE>>(sliceSize))
+                lruSliceCache_.emplace_back(std::make_unique<myLruCache<KEY, VALUE>>(sliceSize));
             }
         }
 

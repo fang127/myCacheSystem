@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
+#include <thread>
 
 namespace myCacheSystem
 {
@@ -154,7 +155,7 @@ namespace myCacheSystem
         head_ = std::make_shared<myLfuNode<KEY, VALUE>>();
         tail_ = std::make_shared<myLfuNode<KEY, VALUE>>();
         head_->next_ = tail_;
-        tail_->prev = head_;
+        tail_->prev_ = head_;
     }
 
     /*
@@ -236,7 +237,7 @@ namespace myCacheSystem
             私有函数方法
         */
         // 获取缓存
-        void getInternal(NodePrt node, const VALUE &value);
+        void getInternal(NodePrt node, VALUE &value);
 
         // 添加缓存
         void putInternal(KEY key, const VALUE &value);
@@ -273,7 +274,7 @@ namespace myCacheSystem
     };
 
     template <typename KEY, typename VALUE>
-    void myLfuCache<KEY, VALUE>::getInternal(NodePrt node, const VALUE &value)
+    void myLfuCache<KEY, VALUE>::getInternal(NodePrt node, VALUE &value)
     {
         /*
             把该节点从当前频次链表中删除，并且移向频次+1的链表中
@@ -314,7 +315,7 @@ namespace myCacheSystem
         // 更新访问次数
         addAccessFreq();
         // 更新最小访问次数
-        minFreq_ = std::min(minFreq_, 1);
+        minFreq_ = std::min(static_cast<int>(minFreq_), 1);
     }
 
     template <typename KEY, typename VALUE>
@@ -326,7 +327,7 @@ namespace myCacheSystem
         auto freq = node->getAccessSize();   // 获取访问频次
         auto it = keyToFreqList_.find(freq); // 找到链表
         if (it != keyToFreqList_.end())
-            it->removeLfuNode(node);
+            it->second->removeLfuNode(node);
     }
 
     template <typename KEY, typename VALUE>
@@ -341,10 +342,10 @@ namespace myCacheSystem
         // 当前key没有对应的值，所以应该先创建
         if (it == keyToFreqList_.end())
         {
-            keyToFreqList_.emplace({freq, make_unique<FreqList<KEY, VALUE>>(freq)});
+            keyToFreqList_.emplace(freq, std::make_unique<FreqList<KEY, VALUE>>(freq));
         }
 
-        keyToFreqList_[freq].addLfuNode(node)
+        keyToFreqList_[freq]->addLfuNode(node);
     }
 
     template <typename KEY, typename VALUE>
@@ -405,7 +406,7 @@ namespace myCacheSystem
         // 找到最少频次链表
         auto it = keyToFreqList_.find(minFreq_);
         // 找到该节点
-        NodePrt node = it->getFirstNode();
+        NodePrt node = it->second->getFirstNode();
         // 更新key-频次链表
         removeFromFreqList(node);
         // 更新key-node
