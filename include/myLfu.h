@@ -114,10 +114,10 @@ namespace myCacheSystem
         // 移除结点
         void removeLfuNode(NodePtr node)
         {
-            if (!node)
+            if (!node || !head_ || !tail_)
                 return;
 
-            if (!node->prev_.expired() || !node->next_)
+            if (node->prev_.expired() || !node->next_)
                 return;
 
             auto prev = node->prev_.lock();
@@ -315,7 +315,7 @@ namespace myCacheSystem
         // 更新访问次数
         addAccessFreq();
         // 更新最小访问次数
-        minFreq_ = std::min(static_cast<int>(minFreq_), 1);
+        minFreq_ = std::min(minFreq_, 1);
     }
 
     template <typename KEY, typename VALUE>
@@ -361,7 +361,7 @@ namespace myCacheSystem
             curAverageNum_ = curTotalNum_ / LfuMap_.size(); // 更新平均访问次数
         }
         // 如果此时平均访问次数大于最大平均访问次数执行算法减少所有结点的访问次数
-        if (curAverageNum_ >= maxAverageNum_)
+        if (curAverageNum_ > maxAverageNum_)
         {
             handleOverMaxAverageNum();
         }
@@ -461,7 +461,7 @@ namespace myCacheSystem
             // 计算每个分片capacity
             size_t sliceSize = std::ceil(static_cast<double>(capacity_) / static_cast<double>(sliceNumber_));
             // 创建多个lfuCache
-            for (int i = 0; i < sliceSize; ++i)
+            for (int i = 0; i < sliceNumber_; ++i)
             {
                 lfuSliceCache_.emplace_back(std::make_unique<myLfuCache<KEY, VALUE>>(sliceSize, maxAverageNum));
             }
@@ -502,7 +502,7 @@ namespace myCacheSystem
     private:
         size_t hashFunction(KEY key) const
         {
-            std::hash<size_t> hashFunc;
+            std::hash<KEY> hashFunc;
             return hashFunc(key);
         }
 

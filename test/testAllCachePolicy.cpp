@@ -45,7 +45,7 @@ void printResult(const std::string &message, int capacity, const std::vector<int
 // 测试热点数据
 void testHotData()
 {
-    std::cout << "--------测试热点数据--------" << std::endl;
+    std::cout << "=== 测试场景1：热点数据访问测试 ===" << std::endl;
 
     // 1. 定义缓存容量、热点数据量、非热点数据量
     size_t CAPACITY = 20;
@@ -57,12 +57,14 @@ void testHotData()
     myCacheSystem::myLruCache<int, std::string> lru(CAPACITY);
     myCacheSystem::myLfuCache<int, std::string> lfu(CAPACITY);
     myCacheSystem::myArcCache<int, std::string> arc(CAPACITY);
+    myCacheSystem::myKLruCache<int, std::string> klru(CAPACITY, HOT_KEY + COLD_KEY, 2);
+    myCacheSystem::myLfuCache<int, std::string> lfuAging(CAPACITY, 20000);
 
     // 3. 定义保存结果的数据结构
-    std::array<myCacheSystem::myCachePolicy<int, std::string> *, 3> cache{&lru, &lfu, &arc}; // 缓冲池
-    std::vector<int> hits(3, 0);                                                             // 保存缓存命中数
-    std::vector<int> get_operations(3, 0);                                                   // 三种策略测试分别get访问缓存总次数
-    std::vector<std::string> names = {"LRU", "LFU", "ARC"};
+    std::array<myCacheSystem::myCachePolicy<int, std::string> *, 5> cache{&lru, &lfu, &arc, &klru, &lfuAging}; // 缓冲池
+    std::vector<int> hits(5, 0);                                                                               // 保存缓存命中数
+    std::vector<int> get_operations(5, 0);                                                                     // 三种策略测试分别get访问缓存总次数
+    std::vector<std::string> names = {"LRU", "LFU", "ARC", "LRU-K", "LFU-Aging"};
     std::random_device rd; // 生成随机数
     std::mt19937 gen(rd());
 
@@ -108,7 +110,7 @@ void testHotData()
             }
         }
     }
-    printResult("热点数据测试", CAPACITY, hits, get_operations);
+    printResult("热点数据访问测试", CAPACITY, hits, get_operations);
 }
 
 int main()
