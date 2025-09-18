@@ -16,7 +16,7 @@ namespace myCacheSystem
             构造函数
         */
         explicit myArcCache(size_t capacity = 10, size_t transformThreshold = 2)
-            : capacity_(capacity), transformThreshold_(transformThreshold), lruPart_(std::make_unique<myArcLruCachePart<KEY, VALUE>>(capacity_, transformThreshold_)), lfuPart_(std::make_unique<myArcLfuCachePart<KEY, VALUE>>(capacity_, transformThreshold_))
+            : capacity_(capacity), transformThreshold_(transformThreshold), lruPart_(std::make_unique<myArcLruCachePart<KEY, VALUE>>(capacity, transformThreshold)), lfuPart_(std::make_unique<myArcLfuCachePart<KEY, VALUE>>(capacity, transformThreshold))
         {
         }
 
@@ -81,17 +81,17 @@ namespace myCacheSystem
         bool isInGhost = false;
         if (lruPart_->checkGhost(key))
         {
-            if (lruPart_->decreaseCapacity())
+            if (lfuPart_->decreaseCapacity())
             {
-                lfuPart_->increaseCapacity();
+                lruPart_->increaseCapacity();
             }
             isInGhost = true;
         }
         else if (lfuPart_->checkGhost(key))
         {
-            if (lfuPart_->decreaseCapacity())
+            if (lruPart_->decreaseCapacity())
             {
-                lruPart_->increaseCapacity();
+                lfuPart_->increaseCapacity();
             }
             isInGhost = true;
         }

@@ -29,7 +29,7 @@ namespace myCacheSystem
             initArcLfuCacheList();
         }
 
-        bool put(KEY key, const VALUE &value)
+        bool put(KEY key, VALUE value)
         {
             if (capacityMain_ == 0)
                 return false;

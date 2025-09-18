@@ -315,7 +315,7 @@ namespace myCacheSystem
         // 更新访问次数
         addAccessFreq();
         // 更新最小访问次数
-        minFreq_ = std::min(minFreq_, 1);
+        minFreq_ = std::min(minFreq_, static_cast<size_t>(1));
     }
 
     template <typename KEY, typename VALUE>

@@ -20,7 +20,7 @@ namespace myCacheSystem
             构造函数
         */
         explicit myArcLruCachePart(size_t capacity, size_t transformThreshold)
-            : capacity_(capacity), ghostCapacity_(capacity), transformThreshold_(transformThreshold)
+            : mainCapacity_(capacity), ghostCapacity_(capacity), transformThreshold_(transformThreshold)
         {
             initArcLruCacheList();
         }
@@ -29,10 +29,10 @@ namespace myCacheSystem
             成员函数接口
         */
         // 向缓存添加节点
-        bool put(KEY key, const VALUE &value)
+        bool put(KEY key, VALUE value)
         {
             // 1. 检查capacity_是否>0，只有大于0才进行put操作
-            if (capacity_ == 0)
+            if (mainCapacity_ == 0)
                 return false;
 
             // 2. 检查key是否已经在缓存中，如果在，则更新value
@@ -64,21 +64,21 @@ namespace myCacheSystem
         // 增加容量
         void increaseCapacity()
         {
-            ++capacity_;
+            ++mainCapacity_;
         }
 
         // 减少容量
         bool decreaseCapacity()
         {
-            if (capacity_ <= 0)
+            if (mainCapacity_ <= 0)
             {
                 return false;
             }
-            if (nodeMainMap_.size() == capacity_)
+            if (nodeMainMap_.size() == mainCapacity_)
             {
                 evictLeastRecent();
             }
-            --capacity_;
+            --mainCapacity_;
             return true;
         }
 
@@ -89,7 +89,7 @@ namespace myCacheSystem
             if (it != nodeGhostMap_.end())
             {
                 removeFromGhost(it->second);
-                nodeGhostMap_.erase(it->second->getKey());
+                nodeGhostMap_.erase(it);
                 return true;
             }
             return false;
@@ -106,7 +106,7 @@ namespace myCacheSystem
         bool updateExistingNode(NODEPTR node, const VALUE &value);
 
         // 移除结点
-        void removeNode(NODEPTR node);
+        void removeFromMain(NODEPTR node);
 
         // 移动结点到最新位置
         void addToRecentNode(NODEPTR node);
@@ -129,7 +129,7 @@ namespace myCacheSystem
         // 更新节点accessCount
         bool updateNodeAccess(NODEPTR node);
 
-        size_t capacity_;           // 主容量
+        size_t mainCapacity_;       // 主容量
         size_t ghostCapacity_;      // 幽灵链表容量
         size_t transformThreshold_; // 转换门槛
         NODEPTR headMain_;          // LRU虚拟缓存头节点
@@ -163,13 +163,13 @@ namespace myCacheSystem
         // 更新值
         node->setValue(value);
         // 更新位置
-        removeNode(node);
+        removeFromMain(node);
         addToRecentNode(node);
         return true;
     }
 
     template <typename KEY, typename VALUE>
-    void myArcLruCachePart<KEY, VALUE>::removeNode(NODEPTR node)
+    void myArcLruCachePart<KEY, VALUE>::removeFromMain(NODEPTR node)
     {
         if (!node->prev_.expired() && node->next_)
         {
@@ -194,7 +194,7 @@ namespace myCacheSystem
     bool myArcLruCachePart<KEY, VALUE>::addNewNode(const KEY &key, const VALUE &value)
     {
         // 1. 判断当前capacity是否足够
-        if (nodeMainMap_.size() >= capacity_)
+        if (nodeMainMap_.size() >= mainCapacity_)
         {
             evictLeastRecent(); // 驱逐最少访问
         }
@@ -213,9 +213,9 @@ namespace myCacheSystem
             return;
 
         // 从缓存链表删除
-        removeNode(leastRecentNode);
+        removeFromMain(leastRecentNode);
         // 添加到幽灵链表
-        if (nodeGhostMap_.size() >= capacity_)
+        if (nodeGhostMap_.size() >= ghostCapacity_)
         {
             removeFifoFromGhost(); // 采用FIFO的策略移除幽灵链表中的节点
         }
@@ -266,10 +266,12 @@ namespace myCacheSystem
     template <typename KEY, typename VALUE>
     bool myArcLruCachePart<KEY, VALUE>::updateNodeAccess(NODEPTR node)
     {
-        node->addAccessCount(); // 增加访问次数
         // 更新位置
-        removeNode(node);
+        removeFromMain(node);
         addToRecentNode(node);
+
+        node->addAccessCount(); // 增加访问次数
+
         return node->getAccessCount() >= transformThreshold_;
     }
 }
