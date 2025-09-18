@@ -41,7 +41,7 @@ make clean
 ```
 2. 运行
 ```
-./main
+./bin/testAllCachePolicy
 ```
 
 ## 贡献指南
